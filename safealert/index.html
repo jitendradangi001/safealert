@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SafeAlert - Emergency Response System</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <!-- Babel CDN -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Leaflet CSS & JS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+    <div id="root" class="flex-1 flex flex-col"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // Audio Siren Generator using Web Audio API
+      const playSirenSound = () => {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return;
+          const ctx = new AudioContext();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          
+          let t = ctx.currentTime;
+          osc.frequency.setValueAtTime(600, t);
+          osc.frequency.linearRampToValueAtTime(1200, t + 0.3);
+          osc.frequency.linearRampToValueAtTime(600, t + 0.6);
+          osc.frequency.linearRampToValueAtTime(1200, t + 0.9);
+          
+          gain.gain.setValueAtTime(0.3, t);
+          gain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start(t);
+          osc.stop(t + 1.2);
+        } catch (e) {
+          console.log("Audio play blocked or unsupported:", e);
+        }
+      };
+
+      // Indian National Emergency Numbers List
+      const indianHelplines = [
+        { name: "National Emergency", number: "112", icon: "🚨", color: "border-red-500/40 bg-red-950/30" },
+        { name: "Police Helpline", number: "100", icon: "👮", color: "border-blue-500/40 bg-blue-950/30" },
+        { name: "Fire Brigade", number: "101", icon: "🚒", color: "border-amber-500/40 bg-amber-950/30" },
+        { name: "Ambulance", number: "102", icon: "🚑", color: "border-emerald-500/40 bg-emerald-950/30" },
+        { name: "Women Helpline", number: "1091", icon: "👩", color: "border-purple-500/40 bg-purple-950/30" },
+        { name: "Disaster Helpline", number: "1078", icon: "🌪️", color: "border-cyan-500/40 bg-cyan-950/30" },
+      ];
+
+      // Categories of Emergency
+      const emergencyCategories = [
+        { id: "general", label: "General Emergency", icon: "🚨" },
+        { id: "medical", label: "Medical Emergency", icon: "🚑" },
+        { id: "police", label: "Crime / Police Help", icon: "👮" },
+        { id: "fire", label: "Fire Incident", icon: "🚒" },
+        { id: "accident", label: "Road Accident", icon: "🚗" },
+        { id: "women", label: "Women Safety", icon: "👩" },
+      ];
+
+      // Login Screen
+      function LoginScreen({ onLogin, setView }) {
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          onLogin({ name: email ? email.split('@')[0] : 'Jitendra Dangi', role: 'mobile_user' });
+        };
+
+        return (
+          <div class="max-w-md w-full mx-auto my-auto bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl space-y-6">
+            <div class="text-center space-y-2">
+              <h1 class="text-2xl font-bold text-red-500">🚨 SafeAlert Login</h1>
+              <p class="text-xs text-slate-400">Emergency Response System</p>
+            </div>
+            <form onSubmit={handleSubmit} class="space-y-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Email / Username</label>
+                <input 
+                  type="text" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="Enter your name or email" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                <input 
+                  type="password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                Login
+              </button>
+            </form>
+            <div class="text-center text-xs text-slate-400">
+              Don't have an account? <button onClick={() => setView('signup')} class="text-red-400 underline">Sign Up</button>
+            </div>
+          </div>
+        );
+      }
+
+      // Signup Screen
+      function SignupScreen({ onLogin, setView }) {
+        const [name, setName] = useState('');
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+
+        const handleSubmit = (e) => {
+          e.preventDefault();
+          onLogin({ name: name || 'Jitendra Dangi', role: 'mobile_user' });
+        };
+
+        return (
+          <div class="max-w-md w-full mx-auto my-auto bg-slate-800 p-8 rounded-2xl border border-slate-700 shadow-xl space-y-6">
+            <div class="text-center space-y-2">
+              <h1 class="text-2xl font-bold text-red-500">🚨 Create SafeAlert Account</h1>
+              <p class="text-xs text-slate-400">Join the emergency network</p>
+            </div>
+            <form onSubmit={handleSubmit} class="space-y-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Full Name</label>
+                <input 
+                  type="text" 
+                  value={name} 
+                  onChange={(e) => setName(e.target.value)} 
+                  placeholder="Enter your name" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Email</label>
+                <input 
+                  type="email" 
+                  value={email} 
+                  onChange={(e) => setEmail(e.target.value)} 
+                  placeholder="name@example.com" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1">Password</label>
+                <input 
+                  type="password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                  placeholder="••••••••" 
+                  class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-red-500"
+                />
+              </div>
+              <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-lg text-sm transition">
+                Sign Up
+              </button>
+            </form>
+            <div class="text-center text-xs text-slate-400">
+              Already have an account? <button onClick={() => setView('login')} class="text-red-400 underline">Login</button>
+            </div>
+          </div>
+        );
+      }
+
+      // Mobile Screen Component
+      function MobileScreen({ sendAlert, isSending, alertSent, isTestMode, setIsTestMode, respondToResolution, alerts, currentUser, selectedCategory, setSelectedCategory }) {
+        const userName = currentUser ? currentUser.name : "Jitendra Dangi";
+        
+        const currentAlert = alerts ? alerts.find(
+          a => (a.user_name === userName || a.user_name === "Demo User") && a.status !== 'resolved'
+        ) : null;
+
+        return (
+          <div class="max-w-md w-full mx-auto bg-slate-800 p-5 rounded-2xl border border-slate-700 space-y-5 text-center shadow-xl">
+            <div class="flex justify-between items-center bg-slate-900 p-3 rounded-lg border border-slate-700">
+              <span class="text-xs text-slate-300 font-medium">Test Alert Simulation</span>
+              <input 
+                type="checkbox" 
+                checked={isTestMode} 
+                onChange={(e) => setIsTestMode(e.target.checked)} 
+                class="w-4 h-4 accent-red-500 cursor-pointer"
+              />
+            </div>
+
+            {/* Select Emergency Type */}
+            <div class="text-left space-y-1.5">
+              <label class="block text-xs font-semibold text-slate-300">Select Type of Emergency:</label>
+              <div class="grid grid-cols-2 gap-2">
+                {emergencyCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat)}
+                    class={`p-2 rounded-lg border text-left flex items-center gap-2 text-xs transition ${
+                      selectedCategory.id === cat.id 
+                        ? 'bg-red-600/30 border-red-500 text-white font-bold' 
+                        : 'bg-slate-900/60 border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <span>{cat.icon}</span>
+                    <span class="truncate">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Big Emergency Trigger Button */}
+            <div class="py-2">
+              <button 
+                onClick={() => sendAlert(false)}
+                disabled={isSending}
+                class={`w-40 h-40 rounded-full border-8 border-red-500/30 text-xl font-black shadow-2xl transition transform active:scale-95 flex flex-col items-center justify-center mx-auto ${
+                  isSending ? 'bg-slate-700 text-slate-400' : 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
+                }`}
+              >
+                <span class="text-3xl">{selectedCategory.icon}</span>
+                <span>{isSending ? 'SENDING...' : 'EMERGENCY'}</span>
+                <span class="text-[10px] font-normal opacity-80 mt-1">{selectedCategory.label}</span>
+              </button>
+            </div>
+
+            {/* Mobile Alert State Workflow */}
+            {currentAlert && (
+              <div class="space-y-3">
+                {currentAlert.status === 'active' && (
+                  <div class="bg-red-500/20 border border-red-500/50 p-3 rounded-xl text-xs text-red-300 font-semibold">
+                    🚨 Emergency alert active! Control room notified.
+                  </div>
+                )}
+
+                {currentAlert.status === 'in_progress' && (
+                  <div class="bg-amber-500/20 border border-amber-500/50 p-3 rounded-xl text-xs text-amber-300 font-semibold animate-pulse">
+                    ⚙️ Response team is processing your request. Help is on the way!
+                  </div>
+                )}
+
+                {/* Interactive Verification Banner */}
+                {currentAlert.status === 'awaiting_confirmation' && (
+                  <div class="bg-yellow-900/80 border-2 border-yellow-500 p-4 rounded-xl space-y-3 animate-bounce shadow-lg">
+                    <p class="text-xs font-bold text-yellow-200">
+                      🔔 Resolution Request: Control room requested verification. Are you safe now?
+                    </p>
+                    <div class="flex gap-2">
+                      <button 
+                        onClick={() => respondToResolution(currentAlert.id, true)}
+                        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-lg text-xs shadow-md transition">
+                        ✅ Yes, I am Safe
+                      </button>
+                      <button 
+                        onClick={() => respondToResolution(currentAlert.id, false)}
+                        class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 rounded-lg text-xs shadow-md transition">
+                        ❌ No, Still in Danger
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {alertSent && (
+              <div class="bg-emerald-500/20 border border-emerald-500 text-emerald-400 p-2.5 rounded-lg text-xs font-semibold">
+                ✓ Emergency alert & GPS location dispatched!
+              </div>
+            )}
+
+            {/* Indian National Helpline Dialing Section */}
+            <div class="border-t border-slate-700 pt-3 text-left space-y-2">
+              <h3 class="text-xs font-bold text-slate-300">🇮🇳 India Emergency Helplines</h3>
+              <div class="grid grid-cols-2 gap-2">
+                {indianHelplines.map((item) => (
+                  <a
+                    key={item.number}
+                    href={`tel:${item.number}`}
+                    class={`p-2 rounded-lg border text-xs flex items-center justify-between font-semibold hover:opacity-80 transition ${item.color}`}
+                  >
+                    <div class="flex items-center gap-1.5 truncate">
+                      <span>{item.icon}</span>
+                      <span class="truncate">{item.name}</span>
+                    </div>
+                    <span class="bg-slate-900 px-1.5 py-0.5 rounded text-[11px] font-mono text-red-400">{item.number}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Dashboard Screen Component with Map Markers
+      function DashboardScreen({ alerts, updateAlertStatus, sendAlertRequestConfirmation }) {
+        const mapRef = useRef(null);
+        const mapInstanceRef = useRef(null);
+        const markersRef = useRef({});
+
+        const totalAlerts = alerts.length;
+        const solvedAlerts = alerts.filter(a => a.status === 'resolved').length;
+        const remainingAlerts = totalAlerts - solvedAlerts;
+
+        // Initialize Leaflet map and update markers
+        useEffect(() => {
+          if (!mapInstanceRef.current && mapRef.current) {
+            mapInstanceRef.current = L.map(mapRef.current).setView([23.0225, 72.5714], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+              attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(mapInstanceRef.current);
+          }
+
+          if (mapInstanceRef.current) {
+            // Clear existing markers
+            Object.values(markersRef.current).forEach(m => m.remove());
+            markersRef.current = {};
+
+            // Add markers for all active and unresolved alerts
+            alerts.forEach((alert) => {
+              if (alert.lat && alert.lng) {
+                const isResolved = alert.status === 'resolved';
+                const iconHtml = `
+                  <div style="background-color: ${isResolved ? '#10b981' : '#ef4444'}; color: white; width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-center; border: 3px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-size: 16px;">
+                    <span style="margin: auto;">${alert.category ? alert.category.icon : '🚨'}</span>
+                  </div>
+                `;
+
+                const customIcon = L.divIcon({
+                  html: iconHtml,
+                  className: 'custom-leaflet-marker',
+                  iconSize: [34, 34],
+                  iconAnchor: [17, 17]
+                });
+
+                const marker = L.marker([alert.lat, alert.lng], { icon: customIcon })
+                  .addTo(mapInstanceRef.current)
+                  .bindPopup(`
+                    <div style="color: #0f172a; font-family: sans-serif; font-size: 12px; font-weight: bold;">
+                      <div>🚨 ${alert.user_name || "Mobile User"}</div>
+                      <div style="color: #64748b; font-weight: normal; margin-top: 2px;">
+                        ${alert.category ? alert.category.label : "General Emergency"}
+                      </div>
+                      <div style="color: #3b82f6; font-size: 10px; margin-top: 4px;">
+                        📍 ${alert.locationName || "Ahmedabad, Gujarat"}
+                      </div>
+                      <div style="margin-top: 4px; font-size: 10px; color: ${isResolved ? '#059669' : '#dc2626'}; font-weight: bold;">
+                        STATUS: ${alert.status.replace('_', ' ').toUpperCase()}
+                      </div>
+                    </div>
+                  `);
+
+                markersRef.current[alert.id] = marker;
+              }
+            });
+
+            // Center map on newest alert if available
+            if (alerts.length > 0 && alerts[0].lat && alerts[0].lng) {
+              mapInstanceRef.current.panTo([alerts[0].lat, alerts[0].lng]);
+            }
+          }
+        }, [alerts]);
+
+        return (
+          <div class="w-full space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
+              <div>
+                <h2 class="text-xl font-bold text-slate-100">PC Emergency Dashboard</h2>
+                <p class="text-xs text-slate-400">Control room monitoring & live map markers</p>
+              </div>
+              
+              <div class="flex gap-3 text-xs">
+                <div class="bg-slate-900 px-3 py-2 rounded-lg border border-slate-700 text-center min-w-[70px]">
+                  <span class="block text-slate-400 text-[10px]">TOTAL</span>
+                  <span class="text-base font-bold text-slate-100">{totalAlerts}</span>
+                </div>
+                <div class="bg-red-950/40 px-3 py-2 rounded-lg border border-red-500/30 text-center min-w-[70px]">
+                  <span class="block text-red-400 text-[10px]">REMAINING</span>
+                  <span class="text-base font-bold text-red-400">{remainingAlerts}</span>
+                </div>
+                <div class="bg-emerald-950/40 px-3 py-2 rounded-lg border border-emerald-500/30 text-center min-w-[70px]">
+                  <span class="block text-emerald-400 text-[10px]">SOLVED</span>
+                  <span class="text-base font-bold text-emerald-400">{solvedAlerts}</span>
+                </div>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div class="lg:col-span-2 bg-slate-800 p-4 rounded-xl border border-slate-700 h-[480px] z-0" ref={mapRef}></div>
+              
+              <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4 overflow-y-auto max-h-[480px]">
+                <h3 class="font-semibold text-sm text-slate-300 border-b border-slate-700 pb-2">Active Emergency Feed</h3>
+                {alerts.length === 0 ? (
+                  <p class="text-xs text-slate-500 text-center py-8">No alerts reported yet.</p>
+                ) : (
+                  alerts.map((alert) => (
+                    <div key={alert.id} class={`p-3 rounded-lg border text-xs space-y-2 ${
+                      alert.status === 'resolved' 
+                        ? 'bg-slate-900/50 border-slate-700 text-slate-400' 
+                        : alert.status === 'in_progress'
+                        ? 'bg-amber-950/30 border-amber-500/50 text-slate-200'
+                        : alert.status === 'awaiting_confirmation'
+                        ? 'bg-yellow-950/30 border-yellow-500/50 text-slate-200'
+                        : 'bg-red-950/30 border-red-500/50 text-slate-200'
+                    }`}>
+                      <div class="flex justify-between items-center font-bold">
+                        <span class="flex items-center gap-1">
+                          <span>{alert.category ? alert.category.icon : "🚨"}</span>
+                          <span>{alert.user_name || "Mobile User"}</span>
+                        </span>
+                        <span class={`px-2 py-0.5 rounded text-[10px] ${
+                          alert.status === 'resolved' 
+                            ? 'bg-emerald-500/20 text-emerald-400' 
+                            : alert.status === 'in_progress'
+                            ? 'bg-amber-500/20 text-amber-400 animate-pulse'
+                            : alert.status === 'awaiting_confirmation'
+                            ? 'bg-yellow-500/20 text-yellow-400 animate-bounce'
+                            : 'bg-red-500/20 text-red-400 animate-pulse'
+                        }`}>
+                          {alert.status.replace('_', ' ').toUpperCase()}
+                        </span>
+                      </div>
+
+                      <p class="text-[11px] font-semibold text-red-400">
+                        Type: {alert.category ? alert.category.label : "General Emergency"}
+                      </p>
+
+                      <div class="bg-slate-900/80 p-2 rounded border border-slate-700/80 space-y-1">
+                        <p class="text-slate-300 font-medium text-[11px] flex items-center gap-1">
+                          <span>📍</span>
+                          <span class="truncate">{alert.locationName || "Ahmedabad, Gujarat, India"}</span>
+                        </p>
+                        <p class="text-slate-500 text-[10px] font-mono">
+                          Lat: {alert.lat?.toFixed(4)}, Lng: {alert.lng?.toFixed(4)}
+                        </p>
+                        <a 
+                          href={`https://www.google.com/maps?q=${alert.lat},${alert.lng}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          class="inline-block text-[10px] text-blue-400 underline hover:text-blue-300">
+                          🗺️ Open in Google Maps
+                        </a>
+                      </div>
+
+                      <div class="flex flex-col gap-1.5 pt-1">
+                        {alert.status === 'active' && (
+                          <button 
+                            onClick={() => updateAlertStatus(alert.id, 'in_progress')}
+                            class="w-full bg-amber-600 hover:bg-amber-700 text-white py-1.5 rounded font-semibold text-xs transition flex items-center justify-center gap-1">
+                            ⚙️ Start Processing
+                          </button>
+                        )}
+
+                        {alert.status === 'in_progress' && (
+                          <button 
+                            onClick={() => sendAlertRequestConfirmation(alert.id)}
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded font-semibold text-xs transition flex items-center justify-center gap-1">
+                            📩 Send Resolution Request to User
+                          </button>
+                        )}
+
+                        {alert.status === 'awaiting_confirmation' && (
+                          <p class="text-[11px] text-yellow-300 italic text-center py-1 bg-yellow-950/50 rounded border border-yellow-800">
+                            ⏳ Sent request to user's phone. Awaiting user response...
+                          </p>
+                        )}
+
+                        {alert.status === 'resolved' && (
+                          <p class="text-[11px] text-emerald-400 font-semibold text-center py-0.5">
+                            ✓ User Confirmed Safe & Problem Resolved
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      // Main App Component
+      function App() {
+        const [view, setView] = useState('mobile');
+        const [currentUser, setCurrentUser] = useState({ name: 'Jitendra Dangi', role: 'mobile_user' });
+        const [selectedCategory, setSelectedCategory] = useState(emergencyCategories[0]);
+        const [isTestMode, setIsTestMode] = useState(true);
+        const [isSending, setIsSending] = useState(false);
+        const [alertSent, setAlertSent] = useState(false);
+        const [alerts, setAlerts] = useState([
+          { 
+            id: 1, 
+            user_name: 'Jitendra Dangi', 
+            lat: 23.0225, 
+            lng: 72.5714, 
+            locationName: "Silver Oak University, SG Highway, Ahmedabad",
+            category: emergencyCategories[0],
+            status: 'active' 
+          }
+        ]);
+
+        const handleLogin = (user) => {
+          setCurrentUser(user);
+          setView('mobile');
+        };
+
+        const sendAlert = (isDemo = false) => {
+          setIsSending(true);
+          playSirenSound();
+
+          setTimeout(() => {
+            const newAlert = {
+              id: Date.now(),
+              user_name: currentUser ? currentUser.name : 'Jitendra Dangi',
+              lat: 23.0225 + (Math.random() - 0.5) * 0.01,
+              lng: 72.5714 + (Math.random() - 0.5) * 0.01,
+              locationName: "Navrangpura, Ashram Road, Ahmedabad",
+              category: selectedCategory,
+              status: 'active'
+            };
+            setAlerts(prev => [newAlert, ...prev]);
+            setIsSending(false);
+            setAlertSent(true);
+            setTimeout(() => setAlertSent(false), 4000);
+          }, 1000);
+        };
+
+        const updateAlertStatus = (id, newStatus) => {
+          setAlerts(prev => prev.map(a => a.id === id ? { ...a, status: newStatus } : a));
+        };
+
+        const sendAlertRequestConfirmation = (id) => {
+          updateAlertStatus(id, 'awaiting_confirmation');
+        };
+
+        const respondToResolution = (id, isSafe) => {
+          if (isSafe) {
+            updateAlertStatus(id, 'resolved');
+          } else {
+            updateAlertStatus(id, 'in_progress');
+          }
+        };
+
+        return (
+          <div class="min-h-screen flex flex-col bg-slate-900 text-slate-100">
+            <nav class="bg-slate-800 border-b border-slate-700 px-6 py-4 flex justify-between items-center shadow-md">
+              <div class="flex items-center space-x-2">
+                <span class="text-xl">🚨</span>
+                <h1 class="font-bold text-lg tracking-wide text-red-500">SafeAlert</h1>
+              </div>
+
+              <div class="flex items-center space-x-3">
+                <span class="text-xs bg-red-500/20 text-red-400 px-3 py-1 rounded-full border border-red-500/30 font-semibold hidden sm:inline-block">
+                  Active Alerts: {alerts.filter(a => a.status !== 'resolved').length}
+                </span>
+
+                <div class="flex space-x-2">
+                  <button 
+                    onClick={() => setView('mobile')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${view === 'mobile' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                  >
+                    📱 Mobile
+                  </button>
+                  <button 
+                    onClick={() => setView('dashboard')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${view === 'dashboard' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                  >
+                    💻 Dashboard
+                  </button>
+                  <button 
+                    onClick={() => setView('login')}
+                    class={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${view === 'login' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+                  >
+                    🔐 Login
+                  </button>
+                </div>
+              </div>
+            </nav>
+
+            <main class="flex-1 p-4 sm:p-6 max-w-7xl mx-auto w-full flex flex-col justify-center">
+              {view === 'login' && <LoginScreen onLogin={handleLogin} setView={setView} />}
+              {view === 'signup' && <SignupScreen onLogin={handleLogin} setView={setView} />}
+              {view === 'mobile' && (
+                <MobileScreen 
+                  sendAlert={sendAlert} 
+                  isSending={isSending} 
+                  alertSent={alertSent} 
+                  isTestMode={isTestMode} 
+                  setIsTestMode={setIsTestMode} 
+                  respondToResolution={respondToResolution}
+                  alerts={alerts}
+                  currentUser={currentUser}
+                  selectedCategory={selectedCategory}
+                  setSelectedCategory={setSelectedCategory}
+                />
+              )}
+              {view === 'dashboard' && (
+                <DashboardScreen 
+                  alerts={alerts} 
+                  updateAlertStatus={updateAlertStatus}
+                  sendAlertRequestConfirmation={sendAlertRequestConfirmation}
+                />
+              )}
+            </main>
+          </div>
+        );
+      }
+
+      ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
